@@ -1,10 +1,15 @@
 use std::{
+    env,
+    fs::File,
     io,
+    io::{ErrorKind, Read},
     path::{Path, PathBuf},
     process::Command,
 };
 
+use dirs;
 use tempfile;
+use toml::Value as Toml;
 
 pub struct Quartus {
     path: PathBuf,
@@ -12,7 +17,32 @@ pub struct Quartus {
 }
 
 impl Quartus {
+    // Create the conf file for the current working directory
+    fn cwd_conf_file() -> io::Result<PathBuf> {
+        let mut dir = env::current_exe()?;
+        dir.pop();
+        dir.push("mistral");
+        dir.set_extension("toml");
+        Ok(dir)
+    }
+
     pub fn new<T: AsRef<Path>>(path: &T) -> Option<Self> {
+        let mut conf_path = dirs::config_dir()?;
+        conf_path.push("mistral");
+        conf_path.push("config");
+        conf_path.set_extension("toml");
+
+        let mut input = String::new();
+        let f = File::open(&conf_path).unwrap_or_else(|error| {
+            if error.kind() == ErrorKind::NotFound {
+                File::open(Quartus::cwd_conf_file().unwrap()).unwrap_or_else(|error| {
+                    panic!("Problem opening the file: {:?}", error);
+                });
+            } else {
+                panic!("Problem opening the file: {:?}", error);
+            }
+        });
+
         // force_os is for using Quartus Windows under WSL.
         #[cfg(windows)]
         let os = force_os.unwrap_or(OsType::Windows);
